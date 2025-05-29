@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   zonos:
@@ -10,7 +10,9 @@ services:
     network_mode: "host"
     stdin_open: true
     tty: true
-    command: ["python3", "gradio_interface.py"]
+    env_file:
+      - .env
+    command: ["python3", "run.py"]
     environment:
       - NVIDIA_VISIBLE_DEVICES=0
       - GRADIO_SHARE=False

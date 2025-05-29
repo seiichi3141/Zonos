@@ -8,4 +8,7 @@ RUN apt update && \
 WORKDIR /app
 COPY . ./
 
-RUN uv pip install --system -e . && uv pip install --system -e .[compile]
+RUN uv pip install --system -e . && uv pip install --system -e .[compile] && uv pip install --system python-dotenv
+
+# デフォルトの.envファイルをコピー（存在しない場合）
+RUN if [ ! -f .env ]; then cp -n .env.example .env || echo "No .env.example file found"; fi

@@ -42,6 +42,20 @@ Zonos follows a straightforward architecture: text normalization and phonemizati
 
 ## Usage
 
+### 環境変数の設定
+
+Zonos は`.env`ファイルを使用して環境変数を設定することができます。
+プロジェクトルートに`.env`ファイルを作成するか、提供されている`.env.example`ファイルをコピーして使用してください。
+
+```bash
+# .envファイルの例
+HOST=0.0.0.0                             # サーバーのホスト
+PORT=8000                                # サーバーのポート
+OPENAI_API_KEY=your_openai_api_key_here  # OpenAI APIキー（テキスト分割機能で使用）
+OPENAI_MODEL=gpt-3.5-turbo               # テキスト分割に使用するモデル
+DEFAULT_MODEL_REPO=Zyphra/Zonos-v0.1-transformer  # 使用するモデル
+```
+
 ### Python
 
 ```python

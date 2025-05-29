@@ -58,7 +58,7 @@ async def initialize_model():
     start_time = time.time()
     
     # キャッシュからモデルを読み込む（なければダウンロード）
-    model = load_model_from_cache(config.DEFAULT_MODEL_REPO, config.DEFAULT_MODEL_REVISION)
+    model = load_model_from_cache(config.DEFAULT_MODEL_REPO)
     logger.info(f"モデル読み込み完了 ({time.time() - start_time:.2f}秒)")
     
     # デフォルトスピーカーを設定

@@ -8,8 +8,8 @@ import asyncio
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, AsyncGenerator
 
+from app import config
 from app.core import model_manager
 from app.api import tts
 from app.utils import audio
@@ -23,6 +23,7 @@ class TTSRequest(BaseModel):
     use_default_speaker: bool = True
     streaming: bool = False  # ストリーミングレスポンスを使用するかどうか
     speaking_rate: float = 15.0  # 話速（フォネーム/秒）: 10=遅い, 15=普通, 30=かなり速い
+    split_text: bool = False  # 長いテキストをOpenAI APIを使って自然に分割するか
 
 # ルーター作成
 router = APIRouter()
@@ -36,6 +37,7 @@ async def synthesize_speech(request: TTSRequest):
     if request.use_default_speaker and model_manager.get_default_speaker() is None:
         raise HTTPException(status_code=500, detail="デフォルトスピーカーが利用できません")
     
+    # ストリーミングリクエストの場合
     if request.streaming:
         async def stream_with_cleanup():
             temp_files = []
@@ -63,23 +65,33 @@ async def synthesize_speech(request: TTSRequest):
             stream_with_cleanup(),
             media_type="application/json"
         )
+    
+    # 非ストリーミングリクエストの場合
     else:
+        # 長いテキストを分割する場合
+        if request.split_text:
+            # ストリーミングなしでテキスト分割を使用する場合はエラーとする
+            raise HTTPException(
+                status_code=400, 
+                detail="テキスト分割機能はストリーミングモードでのみ使用できます。streaming=trueを指定してください。"
+            )
         # 従来の方式（非ストリーミング）
-        try:
-            temp_file_path = await tts.synthesize_speech_sync(
-                request.text, 
-                request.language, 
-                request.use_default_speaker, 
-                request.speaking_rate
-            )
-            
-            return FileResponse(
-                path=temp_file_path,
-                media_type="audio/wav",
-                filename="synthesized_speech.wav"
-            )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"音声合成エラー: {str(e)}")
+        else:
+            try:
+                temp_file_path = await tts.synthesize_speech_sync(
+                    request.text, 
+                    request.language, 
+                    request.use_default_speaker, 
+                    request.speaking_rate
+                )
+                
+                return FileResponse(
+                    path=temp_file_path,
+                    media_type="audio/wav",
+                    filename="synthesized_speech.wav"
+                )
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"音声合成エラー: {str(e)}")
 
 # 一時ファイルダウンロード用のエンドポイント
 @router.get("/download/{filename}")
@@ -106,12 +118,20 @@ async def health_check():
     return {
         "status": "healthy",
         "model_loaded": model_manager.get_model() is not None,
-        "default_speaker_available": model_manager.get_default_speaker() is not None
+        "default_speaker_available": model_manager.get_default_speaker() is not None,
+        "config": {
+            "openai_api_key_set": bool(config.OPENAI_API_KEY),
+            "model_repo": config.DEFAULT_MODEL_REPO,
+            "openai_model": config.OPENAI_MODEL
+        }
     }
 
 @router.get("/")
 async def root():
     """ルートエンドポイント"""
+    # OpenAI APIキーが設定されているか確認
+    openai_key_status = "設定済み" if config.OPENAI_API_KEY else "未設定"
+    
     return {
         "message": "Zonos TTS API",
         "endpoints": {
@@ -120,5 +140,10 @@ async def root():
             "/health": "ヘルスチェック",
             "/docs": "API文書"
         },
-        "streaming_usage": "streaming=trueを指定すると進捗率がJSON形式でストリーミング返却されます"
+        "streaming_usage": "streaming=trueを指定すると進捗率がJSON形式でストリーミング返却されます",
+        "split_text_usage": f"長いテキストはsplit_text=trueを指定するとOpenAI APIを使って自然な区切りで分割されます（streaming=trueが必要）。OpenAI APIキー: {openai_key_status}",
+        "environment": {
+            "model": config.DEFAULT_MODEL_REPO,
+            "openai_model": config.OPENAI_MODEL
+        }
     }

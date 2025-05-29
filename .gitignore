@@ -12,4 +12,7 @@ wheels/
 # Misc.
 .ipynb_checkpoints/
 
+# 環境変数設定ファイル
+.env
+
 cache/
