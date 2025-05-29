@@ -2,9 +2,9 @@
 メインアプリケーションエントリポイント
 FastAPIアプリケーションの初期化と実行
 """
-import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app import config
@@ -26,6 +26,15 @@ app = FastAPI(
     title=config.API_TITLE, 
     description=config.API_DESCRIPTION,
     lifespan=lifespan
+)
+
+# CORS設定
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Next.jsの開発サーバー
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ルーターを登録
