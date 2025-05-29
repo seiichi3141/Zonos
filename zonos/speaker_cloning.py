@@ -406,7 +406,33 @@ class SpeakerEmbeddingLDA(nn.Module):
             self.lda.load_state_dict(lda_sd)
 
         self.requires_grad_(False).eval()
+        
+        # メモリキャッシュを初期化
+        self._embedding_cache = {}
+        self._max_cache_size = 10  # 最大キャッシュサイズ
+
+    def _get_cache_key(self, wav: torch.Tensor, sample_rate: int) -> str:
+        """キャッシュのためのユニークなキーを生成"""
+        # wavの特徴量からキーを生成（より洗練されたハッシュ関数を使用するとよい）
+        return f"{sample_rate}_{wav.shape}_{wav.sum().item()}"
 
     def forward(self, wav: torch.Tensor, sample_rate: int):
+        # キャッシュキーを取得
+        cache_key = self._get_cache_key(wav, sample_rate)
+        
+        # キャッシュにエントリがあればそれを返す
+        if cache_key in self._embedding_cache:
+            return self._embedding_cache[cache_key]
+            
+        # キャッシュにエントリがなければ計算
         emb = self.model(wav, sample_rate).to(torch.float32)
-        return emb, self.lda(emb)
+        result = (emb, self.lda(emb))
+        
+        # キャッシュが最大サイズに達したら、最も古いエントリを削除
+        if len(self._embedding_cache) >= self._max_cache_size:
+            oldest_key = next(iter(self._embedding_cache))
+            del self._embedding_cache[oldest_key]
+            
+        # 結果をキャッシュして返す
+        self._embedding_cache[cache_key] = result
+        return result

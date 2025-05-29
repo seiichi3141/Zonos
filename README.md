@@ -24,6 +24,8 @@ Our model enables highly natural speech generation from text prompts when given 
 
 ##### We also have a hosted version available at [playground.zyphra.com/audio](https://playground.zyphra.com/audio)
 
+##### For faster loading on subsequent runs, see [caching features](CACHE_README.md)
+
 ---
 
 Zonos follows a straightforward architecture: text normalization and phonemization via eSpeak, followed by DAC token prediction through a transformer or hybrid backbone. An overview of the architecture can be seen below.
