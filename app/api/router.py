@@ -39,30 +39,24 @@ async def synthesize_speech(request: TTSRequest):
     
     # ストリーミングリクエストの場合
     if request.streaming:
-        async def stream_with_cleanup():
+        async def stream():
             temp_files = []
-            try:
-                async for chunk in tts.generate_speech_stream(
-                    request.text, 
-                    request.language, 
-                    request.use_default_speaker, 
-                    request.speaking_rate
-                ):
-                    # ファイルパスを記録
-                    if '"file_path"' in chunk:
-                        import re
-                        match = re.search(r'"file_path":\s*"([^"]+)"', chunk)
-                        if match:
-                            temp_files.append(match.group(1))
-                    yield chunk
-            finally:
-                # ストリーミング完了後にファイルを遅延削除
-                for temp_file in temp_files:
-                    if os.path.exists(temp_file):
-                        asyncio.create_task(audio.cleanup_temp_file(temp_file))
+            async for chunk in tts.generate_speech_stream(
+                request.text, 
+                request.language, 
+                request.use_default_speaker, 
+                request.speaking_rate
+            ):
+                # ファイルパスを記録
+                if '"file_path"' in chunk:
+                    import re
+                    match = re.search(r'"file_path":\s*"([^"]+)"', chunk)
+                    if match:
+                        temp_files.append(match.group(1))
+                yield chunk
         
         return StreamingResponse(
-            stream_with_cleanup(),
+            stream(),
             media_type="application/json"
         )
     

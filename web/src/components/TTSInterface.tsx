@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Card,
@@ -12,6 +12,13 @@ import {
   Slider,
   Alert,
   IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Divider,
+  Collapse,
+  Chip,
 } from "@mui/material";
 import {
   PlayArrow,
@@ -20,6 +27,10 @@ import {
   VolumeUp,
   Settings,
   Clear,
+  History,
+  ExpandMore,
+  ExpandLess,
+  Delete,
 } from "@mui/icons-material";
 
 interface TTSRequest {
@@ -39,6 +50,15 @@ interface ProgressInfo {
   file_path?: string;
 }
 
+interface HistoryItem {
+  id: string;
+  text: string;
+  fullText: string; // 完全なテキストを保存
+  speakingRate: number;
+  audioUrl: string | null;
+  timestamp: Date;
+}
+
 const TTSInterface: React.FC = () => {
   const [text, setText] = useState("");
   const [speakingRate, setSpeakingRate] = useState(15);
@@ -49,12 +69,78 @@ const TTSInterface: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentSegment, setCurrentSegment] = useState<number | null>(null);
   const [totalSegments, setTotalSegments] = useState<number | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  // 履歴をローカルストレージから読み込み
+  useEffect(() => {
+    const savedHistory = localStorage.getItem("tts-history");
+    if (savedHistory) {
+      try {
+        const parsedHistory = JSON.parse(savedHistory).map(
+          (item: HistoryItem) => ({
+            ...item,
+            timestamp: new Date(item.timestamp),
+          })
+        );
+        setHistory(parsedHistory);
+      } catch (error) {
+        console.error("履歴の読み込みに失敗しました:", error);
+      }
+    }
+  }, []);
+
+  // 履歴をローカルストレージに保存
+  const saveHistoryToStorage = (newHistory: HistoryItem[]) => {
+    try {
+      localStorage.setItem("tts-history", JSON.stringify(newHistory));
+    } catch (error) {
+      console.error("履歴の保存に失敗しました:", error);
+    }
+  };
+
+  // 履歴に新しいアイテムを追加
+  const addToHistory = (
+    text: string,
+    speakingRate: number,
+    audioUrl: string | null
+  ) => {
+    const newItem: HistoryItem = {
+      id: Date.now().toString(),
+      text: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+      fullText: text, // 完全なテキストを保存
+      speakingRate,
+      audioUrl,
+      timestamp: new Date(),
+    };
+
+    const newHistory = [newItem, ...history].slice(0, 20); // 最新20件まで保持
+    setHistory(newHistory);
+    saveHistoryToStorage(newHistory);
+  };
+
+  // 履歴から選択
+  const selectFromHistory = (item: HistoryItem) => {
+    setText(item.fullText); // 完全なテキストを復元
+    setSpeakingRate(item.speakingRate);
+    if (item.audioUrl) {
+      setAudioUrl(item.audioUrl);
+    }
+    setError(null);
+  };
+
+  // 履歴アイテムを削除
+  const removeFromHistory = (id: string) => {
+    const newHistory = history.filter((item) => item.id !== id);
+    setHistory(newHistory);
+    saveHistoryToStorage(newHistory);
+  };
 
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(event.target.value);
@@ -151,9 +237,19 @@ const TTSInterface: React.FC = () => {
                 setTotalSegments(progressInfo.total_segments);
               }
 
-              if (progressInfo.file_path && progressInfo.progress === 100) {
+              if (progressInfo.file_path) {
                 const audioUrl = `${API_BASE_URL}/download/${progressInfo.file_path.split("/").pop()}`;
                 setAudioUrl(audioUrl);
+                // 履歴に追加
+                addToHistory(text, speakingRate, audioUrl);
+                // 音声生成完了後、少し待ってから自動再生
+                setTimeout(() => {
+                  if (audioRef.current) {
+                    audioRef.current.play().catch((error) => {
+                      console.error("自動再生に失敗しました:", error);
+                    });
+                  }
+                }, 500); // 0.5秒待機してからの再生で、音声ファイルの読み込みを待つ
               }
             } catch (parseError) {
               console.error("JSON解析エラー:", parseError);
@@ -219,6 +315,29 @@ const TTSInterface: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
+            <Settings sx={{ mr: 1, verticalAlign: "middle" }} />
+            音声設定
+          </Typography>
+          <Box sx={{ mb: 3, mx: 4 }}>
+            <Typography gutterBottom>
+              話速: {speakingRate} ({getSpeakingRateLabel(speakingRate)})
+            </Typography>
+            <Slider
+              value={speakingRate}
+              onChange={handleSpeakingRateChange}
+              min={10}
+              max={30}
+              step={1}
+              marks={[
+                { value: 10, label: "遅い" },
+                { value: 15, label: "普通" },
+                { value: 20, label: "速い" },
+                { value: 30, label: "とても速い" },
+              ]}
+              disabled={isGenerating}
+            />
+          </Box>
+          <Typography variant="h6" gutterBottom>
             <VolumeUp sx={{ mr: 1, verticalAlign: "middle" }} />
             テキスト入力
           </Typography>
@@ -245,42 +364,6 @@ const TTSInterface: React.FC = () => {
               </IconButton>
             )}
           </Box>
-        </CardContent>
-      </Card>
-
-      {/* 設定エリア */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            <Settings sx={{ mr: 1, verticalAlign: "middle" }} />
-            音声設定
-          </Typography>
-
-          <Box sx={{ mb: 3 }}>
-            <Typography gutterBottom>
-              話速: {speakingRate} ({getSpeakingRateLabel(speakingRate)})
-            </Typography>
-            <Slider
-              value={speakingRate}
-              onChange={handleSpeakingRateChange}
-              min={10}
-              max={30}
-              step={1}
-              marks={[
-                { value: 10, label: "遅い" },
-                { value: 15, label: "普通" },
-                { value: 20, label: "速い" },
-                { value: 30, label: "とても速い" },
-              ]}
-              disabled={isGenerating}
-            />
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* 生成ボタン */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
           <Box sx={{ display: "flex", gap: 2, justifyContent: "center" }}>
             <Button
               variant="contained"
@@ -308,6 +391,102 @@ const TTSInterface: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* 履歴セクション */}
+      {history.length > 0 && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 2,
+              }}
+            >
+              <Typography variant="h6">
+                <History sx={{ mr: 1, verticalAlign: "middle" }} />
+                履歴
+              </Typography>
+              <Button
+                onClick={() => setShowHistory(!showHistory)}
+                endIcon={showHistory ? <ExpandLess /> : <ExpandMore />}
+                size="small"
+              >
+                {showHistory ? "非表示" : "表示"} ({history.length}件)
+              </Button>
+            </Box>
+
+            <Collapse in={showHistory}>
+              <List dense>
+                {history.map((item, index) => (
+                  <React.Fragment key={item.id}>
+                    <ListItem>
+                      <ListItemText
+                        primary={item.text}
+                        secondary={
+                          <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+                            <Chip
+                              label={`話速: ${item.speakingRate}`}
+                              size="small"
+                              variant="outlined"
+                            />
+                            <Chip
+                              label={item.timestamp.toLocaleString()}
+                              size="small"
+                              variant="outlined"
+                            />
+                            {item.audioUrl && (
+                              <Chip
+                                label="音声あり"
+                                size="small"
+                                color="success"
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        <Box sx={{ display: "flex", gap: 1 }}>
+                          <Button
+                            size="small"
+                            onClick={() => selectFromHistory(item)}
+                            disabled={isGenerating}
+                          >
+                            選択
+                          </Button>
+                          {item.audioUrl && (
+                            <Button
+                              size="small"
+                              color="success"
+                              onClick={() => {
+                                setAudioUrl(item.audioUrl);
+                                handlePlayAudio();
+                              }}
+                              disabled={isGenerating}
+                            >
+                              再生
+                            </Button>
+                          )}
+                          <IconButton
+                            size="small"
+                            onClick={() => removeFromHistory(item.id)}
+                            color="error"
+                          >
+                            <Delete />
+                          </IconButton>
+                        </Box>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                    {index < history.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))}
+              </List>
+            </Collapse>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 進捗表示 */}
       {isGenerating && (
         <Card sx={{ mb: 3 }}>
@@ -326,7 +505,6 @@ const TTSInterface: React.FC = () => {
               {statusMessage}
               {currentSegment !== null && totalSegments !== null && (
                 <span>
-                  {" "}
                   (セグメント {currentSegment}/{totalSegments})
                 </span>
               )}

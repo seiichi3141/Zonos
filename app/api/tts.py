@@ -95,7 +95,8 @@ async def synthesize_speech_sync(text, language="ja", use_default_speaker=True, 
         # 一時ファイルに保存
         temp_file_path = audio.save_audio_to_temp_file(wavs[0], model.autoencoder.sampling_rate)
         
-        # 非同期的にファイル削除を行うタスクを作成
+        # 同期版では即座にファイル削除タスクを作成（単発使用のため）
+        # ストリーミング版とは異なり、すぐに使用されてダウンロードされることを想定
         asyncio.create_task(audio.cleanup_temp_file(temp_file_path))
         
         return temp_file_path
@@ -306,8 +307,6 @@ async def generate_speech_stream(
             "error": True
         }) + "\n"
     finally:
-        # ストリーミング完了後にファイルクリーンアップを遅延実行
-        for temp_file_path in temp_file_paths:
-            if temp_file_path and os.path.exists(temp_file_path):
-                # バックグラウンドタスクとしてファイル削除を実行
-                asyncio.create_task(audio.cleanup_temp_file(temp_file_path))
+        # ストリーミングレスポンスの音声ファイルはダウンロード用に保持するため削除しない
+        # 必要に応じて別途手動でクリーンアップするか、定期的なクリーンアップ処理を実装する
+        logger.info(f"ストリーミング音声合成が完了しました。生成されたファイル数: {len(temp_file_paths)}")
