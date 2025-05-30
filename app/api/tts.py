@@ -17,7 +17,12 @@ from app.core import model_manager
 from app.utils import audio
 from app import config
 
+import spacy
+from ja_ginza_electra import *
+
 logger = logging.getLogger(__name__)
+
+nlp = spacy.load("ja_ginza_electra")
 
 async def split_text_with_openai(text: str) -> List[str]:
     """
@@ -136,7 +141,11 @@ async def generate_speech_stream(
         # yield send_progress("text_splitting", 0.05, "テキストを適切な長さに分割中...")
         # text_segments = await split_text_with_openai(text)
         # logger.info(f"分割されたテキストセグメント数: {len(text_segments)}")
-        text_segments = [text]  # OpenAI APIを使用せず、テキストをそのまま使用
+
+        # GINZAを使用してテキストを分割
+        doc = nlp(text)
+        # doc.sentsの各文をセグメントとして扱う
+        text_segments = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
         total_segments = len(text_segments)
         
         # 3. 各セグメントを順番に処理

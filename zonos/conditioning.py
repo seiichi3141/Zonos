@@ -64,8 +64,17 @@ from kanjize import number2kanji
 from phonemizer.backend import EspeakBackend
 from sudachipy import Dictionary, SplitMode
 
+# GINZAを導入
+import spacy
+from ja_ginza_electra import *
+
 if sys.platform == "darwin":
     os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = "/opt/homebrew/lib/libespeak-ng.dylib"
+
+# GINZAモデルをロード
+@cache
+def get_ginza_nlp():
+    return spacy.load("ja_ginza_electra")
 
 # --- Number normalization code from https://github.com/daniilrobnikov/vits2/blob/main/text/normalize_numbers.py ---
 
@@ -168,21 +177,48 @@ def tokenize_phonemes(phonemes: list[str]) -> tuple[torch.Tensor, list[int]]:
     return torch.tensor(phoneme_ids), lengths
 
 
-def normalize_jp_text(text: str, tokenizer=Dictionary(dict="full").create()) -> str:
+def normalize_jp_text(text: str, tokenizer=Dictionary(dict="full").create(), use_ginza: bool = False) -> str:
+    """
+    日本語テキストを正規化します。
+    Args:
+        text: 正規化する日本語テキスト
+        tokenizer: SudachiPyのtokenizer
+        use_ginza: GINZAを使用するかどうか
+    Returns:
+        正規化されたテキスト
+    """
     text = unicodedata.normalize("NFKC", text)
     text = re.sub(r"\d+", lambda m: number2kanji(int(m[0])), text)
-    final_text = " ".join([x.reading_form() for x in tokenizer.tokenize(text, SplitMode.C)])
+    
+    if use_ginza:
+        # GINZAを使用した処理
+        nlp = get_ginza_nlp()
+        doc = nlp(text)
+        # 読み（よみがな）を取得し、単語間にスペースを挿入
+        readings = []
+        for token in doc:
+            if token.pos_ not in ["PUNCT", "SYM", "SPACE"]:  # 句読点や記号、スペースは除外
+                # tokenのmiscフィールドからreadingを抽出（GINZAの場合）
+                reading = token._.reading if hasattr(token._, "reading") else token.text
+                readings.append(reading if reading else token.text)
+            else:
+                readings.append(token.text)
+        final_text = " ".join(readings)
+    else:
+        # 従来のSudachiPyを使った処理
+        final_text = " ".join([x.reading_form() for x in tokenizer.tokenize(text, SplitMode.C)])
+    
     return final_text
 
 
-def clean(texts: list[str], languages: list[str]) -> list[str]:
+def clean(texts: list[str], languages: list[str], use_ginza_for_japanese: bool = False) -> list[str]:
     # 読点、句読点を正規化
     texts = [text.replace("、", ",").replace("。", ".").replace("！", "!").replace("？", "?") for text in texts]
 
     texts_out = []
     for text, language in zip(texts, languages):
         if "ja" in language:
-            text = normalize_jp_text(text)
+            text = normalize_jp_text(text, use_ginza=use_ginza_for_japanese)
         else:
             text = normalize_numbers(text)
         texts_out.append(text)
@@ -207,9 +243,9 @@ def get_backend(language: str) -> "EspeakBackend":
     return backend
 
 
-def phonemize(texts: list[str], languages: list[str]) -> list[str]:
+def phonemize(texts: list[str], languages: list[str], use_ginza_for_japanese: bool = False) -> list[str]:
     print(f"cleaning: {texts}")
-    texts = clean(texts, languages)
+    texts = clean(texts, languages, use_ginza_for_japanese=use_ginza_for_japanese)
 
     print(f"phonemizing: {texts}")
     batch_phonemes = []
@@ -223,9 +259,10 @@ def phonemize(texts: list[str], languages: list[str]) -> list[str]:
 
 
 class EspeakPhonemeConditioner(Conditioner):
-    def __init__(self, output_dim: int, **kwargs):
+    def __init__(self, output_dim: int, use_ginza_for_japanese: bool = False, **kwargs):
         super().__init__(output_dim, **kwargs)
         self.phoneme_embedder = nn.Embedding(len(SPECIAL_TOKEN_IDS) + len(symbols), output_dim)
+        self.use_ginza_for_japanese = use_ginza_for_japanese
 
     def apply_cond(self, texts: list[str], languages: list[str]) -> torch.Tensor:
         """
@@ -235,7 +272,7 @@ class EspeakPhonemeConditioner(Conditioner):
         """
         device = self.phoneme_embedder.weight.device
 
-        phonemes = phonemize(texts, languages)
+        phonemes = phonemize(texts, languages, use_ginza_for_japanese=self.use_ginza_for_japanese)
         phoneme_ids, _ = tokenize_phonemes(phonemes)
         phoneme_embeds = self.phoneme_embedder(phoneme_ids.to(device))
 
@@ -371,6 +408,8 @@ def make_cond_dict(
     dnsmos_ovrl: float = 4.0,
     # Only used for the hybrid model
     speaker_noised: bool = False,
+    # GINZAの使用有無
+    use_ginza_for_japanese: bool = False,
     unconditional_keys: Iterable[str] = {"vqscore_8", "dnsmos_ovrl"},
     device: torch.device | str = DEFAULT_DEVICE,
 ) -> dict:
@@ -394,6 +433,7 @@ def make_cond_dict(
         "ctc_loss": ctc_loss,
         "dnsmos_ovrl": dnsmos_ovrl,
         "speaker_noised": int(speaker_noised),
+        "use_ginza_for_japanese": use_ginza_for_japanese,  # GINZAの使用有無を追加
     }
 
     for k in unconditional_keys:
