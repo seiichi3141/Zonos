@@ -97,9 +97,6 @@ async def download_file(filename: str):
     if not os.path.exists(temp_file_path):
         raise HTTPException(status_code=404, detail="ファイルが見つかりません")
     
-    # 非同期的にファイル削除を行うタスクを作成
-    asyncio.create_task(audio.cleanup_temp_file(temp_file_path))
-    
     return FileResponse(
         path=temp_file_path,
         media_type="audio/wav",

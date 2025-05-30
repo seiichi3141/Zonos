@@ -276,6 +276,7 @@ async def generate_speech_stream(
             # セグメント完了通知
             yield json.dumps({
                 "stage": "segment_completed",
+                "text": segment_text,
                 "progress": segment_progress_base + segment_progress_range,
                 "message": f"セグメント {segment_index}/{total_segments} の処理が完了しました",
                 "completed": False,
@@ -288,6 +289,7 @@ async def generate_speech_stream(
         # 全セグメント処理完了
         yield json.dumps({
             "stage": "completed",
+            "text": segment_text,
             "progress": 1.0,
             "message": f"全 {total_segments} セグメントの音声合成が完了しました",
             "completed": True,

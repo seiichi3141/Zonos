@@ -60,7 +60,7 @@ def cached_speaker_embedding(model, wav_path):
     
     # # キャッシュに無いか期限切れの場合は新しく生成
     # logger.info(f"新しいスピーカーエンベディングを生成: {wav_path}")
-    # start_time = time.time()
+    start_time = time.time()
     
     import torchaudio
     wav, sampling_rate = torchaudio.load(wav_path)
