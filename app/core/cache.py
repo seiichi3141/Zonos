@@ -50,16 +50,17 @@ def cached_speaker_embedding(model, wav_path):
     
     # キャッシュが有効かチェック
     current_time = time.time()
-    if wav_path in SPEAKER_EMBEDDING_CACHE:
-        embedding, timestamp = SPEAKER_EMBEDDING_CACHE[wav_path]
-        # キャッシュの有効期限をチェック
-        if current_time - timestamp < config.CACHE_EXPIRY_TIME:
-            logger.info(f"キャッシュからスピーカーエンベディングを使用: {wav_path}")
-            return embedding
     
-    # キャッシュに無いか期限切れの場合は新しく生成
-    logger.info(f"新しいスピーカーエンベディングを生成: {wav_path}")
-    start_time = time.time()
+    # if wav_path in SPEAKER_EMBEDDING_CACHE:
+    #     embedding, timestamp = SPEAKER_EMBEDDING_CACHE[wav_path]
+    #     # キャッシュの有効期限をチェック
+    #     if current_time - timestamp < config.CACHE_EXPIRY_TIME:
+    #         logger.info(f"キャッシュからスピーカーエンベディングを使用: {wav_path}")
+    #         return embedding
+    
+    # # キャッシュに無いか期限切れの場合は新しく生成
+    # logger.info(f"新しいスピーカーエンベディングを生成: {wav_path}")
+    # start_time = time.time()
     
     import torchaudio
     wav, sampling_rate = torchaudio.load(wav_path)

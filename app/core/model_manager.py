@@ -18,26 +18,26 @@ model = None
 default_speaker = None
 
 def load_model_from_cache(repo_id, revision=None):
-    """キャッシュからモデルを読み込む（HuggingFaceから再ダウンロードせずに高速化）"""
-    from huggingface_hub import hf_hub_download
+    # """キャッシュからモデルを読み込む（HuggingFaceから再ダウンロードせずに高速化）"""
+    # from huggingface_hub import hf_hub_download
     
-    try:
-        # キャッシュディレクトリの取得（ライブラリのデフォルトキャッシュを活用）
-        from huggingface_hub import constants
-        hf_cache_dir = os.getenv("HF_HOME", constants.default_cache_path)
+    # try:
+    #     # キャッシュディレクトリの取得（ライブラリのデフォルトキャッシュを活用）
+    #     from huggingface_hub import constants
+    #     hf_cache_dir = os.getenv("HF_HOME", constants.default_cache_path)
         
-        # キャッシュが既にあるかどうかを確認するために、キャッシュされたパスを計算せずに
-        # 存在確認のためにダウンロードを試みる（キャッシュがあれば再ダウンロードしない）
-        logger.info(f"モデルファイルのキャッシュを確認中: {repo_id}")
-        config_path = hf_hub_download(repo_id=repo_id, filename="config.json", revision=revision)
-        model_path = hf_hub_download(repo_id=repo_id, filename="model.safetensors", revision=revision)
+    #     # キャッシュが既にあるかどうかを確認するために、キャッシュされたパスを計算せずに
+    #     # 存在確認のためにダウンロードを試みる（キャッシュがあれば再ダウンロードしない）
+    #     logger.info(f"モデルファイルのキャッシュを確認中: {repo_id}")
+    #     config_path = hf_hub_download(repo_id=repo_id, filename="config.json", revision=revision)
+    #     model_path = hf_hub_download(repo_id=repo_id, filename="model.safetensors", revision=revision)
         
-        if os.path.exists(config_path) and os.path.exists(model_path):
-            logger.info(f"キャッシュされたモデルファイルを使用します: {model_path}")
-            return Zonos.from_local(config_path, model_path, device=device)
+    #     if os.path.exists(config_path) and os.path.exists(model_path):
+    #         logger.info(f"キャッシュされたモデルファイルを使用します: {model_path}")
+    #         return Zonos.from_local(config_path, model_path, device=device)
         
-    except Exception as e:
-        logger.error(f"キャッシュからのモデル読み込みエラー: {e}")
+    # except Exception as e:
+    #     logger.error(f"キャッシュからのモデル読み込みエラー: {e}")
         
     # キャッシュがない場合や読み込みエラーの場合はデフォルトのロード方式に戻る
     logger.info(f"モデルを通常方式で読み込みます: {repo_id}")

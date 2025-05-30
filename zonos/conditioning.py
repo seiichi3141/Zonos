@@ -176,6 +176,9 @@ def normalize_jp_text(text: str, tokenizer=Dictionary(dict="full").create()) -> 
 
 
 def clean(texts: list[str], languages: list[str]) -> list[str]:
+    # 読点、句読点を正規化
+    texts = [text.replace("、", ",").replace("。", ".").replace("！", "!").replace("？", "?") for text in texts]
+
     texts_out = []
     for text, language in zip(texts, languages):
         if "ja" in language:
@@ -205,14 +208,17 @@ def get_backend(language: str) -> "EspeakBackend":
 
 
 def phonemize(texts: list[str], languages: list[str]) -> list[str]:
+    print(f"cleaning: {texts}")
     texts = clean(texts, languages)
 
+    print(f"phonemizing: {texts}")
     batch_phonemes = []
     for text, language in zip(texts, languages):
         backend = get_backend(language)
         phonemes = backend.phonemize([text], strip=True)
         batch_phonemes.append(phonemes[0])
 
+    print(f"phonemized: {batch_phonemes}")
     return batch_phonemes
 
 

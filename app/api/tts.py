@@ -133,9 +133,10 @@ async def generate_speech_stream(
         await asyncio.sleep(0.1)
         
         # 2. テキストの分割
-        yield send_progress("text_splitting", 0.05, "テキストを適切な長さに分割中...")
-        text_segments = await split_text_with_openai(text)
-        logger.info(f"分割されたテキストセグメント数: {len(text_segments)}")
+        # yield send_progress("text_splitting", 0.05, "テキストを適切な長さに分割中...")
+        # text_segments = await split_text_with_openai(text)
+        # logger.info(f"分割されたテキストセグメント数: {len(text_segments)}")
+        text_segments = [text]  # OpenAI APIを使用せず、テキストをそのまま使用
         total_segments = len(text_segments)
         
         # 3. 各セグメントを順番に処理
